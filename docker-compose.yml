@@ -1,0 +1,13 @@
+version: "3.9"
+services:
+  mirage:
+    build: ./docker
+    container_name: mirage_app
+    volumes:
+      - ./src:/app/src
+      - ./docs:/app/docs
+    environment:
+      - PYTHONUNBUFFERED=1
+    stdin_open: true
+    tty: true
+
