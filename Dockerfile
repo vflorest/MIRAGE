@@ -11,12 +11,13 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Copiar requerimientos
-COPY ../requirements.txt .
+COPY requirements.txt .
 
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiar el código
-COPY ../src ./src
+COPY src/ ./src
+COPY docs/ ./docs
 
 CMD ["python", "src/main.py"]
 

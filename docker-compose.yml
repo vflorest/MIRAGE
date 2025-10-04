@@ -1,7 +1,6 @@
-version: "3.9"
 services:
   mirage:
-    build: ./docker
+    build: .
     container_name: mirage_app
     volumes:
       - ./src:/app/src
