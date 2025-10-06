@@ -1,12 +1,19 @@
+version: "3.9"
 services:
   mirage:
-    build: .
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
     container_name: mirage_app
+    environment:
+      - DISPLAY=${DISPLAY}
+      - PYTHONUNBUFFERED=1
     volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix
       - ./src:/app/src
       - ./docs:/app/docs
-    environment:
-      - PYTHONUNBUFFERED=1
+    devices:
+      - "/dev/video0:/dev/video0"
     stdin_open: true
     tty: true
 
