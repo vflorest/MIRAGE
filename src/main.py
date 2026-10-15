@@ -1,4 +1,5 @@
 import argparse
+import sys
 import time
 from pathlib import Path
 
@@ -37,7 +38,8 @@ def put_text(frame, text, y, scale=0.8, color=(255, 255, 255)):
 
 
 def main(dry_run=False):
-    cap = cv2.VideoCapture(0)
+    # En Windows el backend por defecto (MSMF) suele tardar o fallar al abrir la cámara
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(0)
     if not cap.isOpened():
         print("No se detecta cámara")
         return
