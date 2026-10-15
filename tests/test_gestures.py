@@ -53,7 +53,6 @@ class PoseTests(unittest.TestCase):
     def test_poses(self):
         self.assertEqual(g.classify_pose(make_hand(ALL, thumb=True)), "OPEN")
         self.assertEqual(g.classify_pose(make_hand()), "FIST")
-        self.assertEqual(g.classify_pose(make_hand(("index", "middle"))), "PEACE")
         self.assertEqual(g.classify_pose(make_hand(("index",), pinch=True)), "PINCH")
         self.assertEqual(g.classify_pose(make_hand(("index",))), "NONE")
 
@@ -63,20 +62,25 @@ class PoseTests(unittest.TestCase):
 
 
 class EventTests(unittest.TestCase):
-    def test_static_needs_hold(self):
+    def test_fist_needs_hold(self):
         rec = g.GestureRecognizer()
         fist = make_hand()
         self.assertEqual(run(rec, [(fist, 0.0), (fist, 0.2)]), [])
-        self.assertEqual(run(rec, [(fist, 0.5)]), ["PLAY_PAUSE"])
+        self.assertEqual(run(rec, [(fist, 0.5)]), ["FIST"])
         self.assertEqual(run(rec, [(fist, 0.9)]), [])  # una sola vez por gesto
 
-    def test_mute_and_select(self):
-        rec = g.GestureRecognizer()
-        peace = make_hand(("index", "middle"))
-        self.assertEqual(run(rec, [(peace, 0.0), (peace, 0.5)]), ["MUTE_TOGGLE"])
+    def test_pinch_is_fast(self):
         rec = g.GestureRecognizer()
         pinch = make_hand(("index",), pinch=True)
-        self.assertEqual(run(rec, [(pinch, 0.0), (pinch, 0.5)]), ["SELECT"])
+        self.assertEqual(run(rec, [(pinch, 0.0), (pinch, 0.1)]), [])
+        self.assertEqual(run(rec, [(pinch, 0.2), (pinch, 0.6)]), ["PINCH"])
+
+    def test_removed_gestures_do_nothing(self):
+        rec = g.GestureRecognizer()
+        peace = make_hand(("index", "middle"))
+        tilted = make_hand(ALL, thumb=True, angle=50)
+        self.assertEqual(run(rec, [(peace, i * 0.2) for i in range(6)]), [])
+        self.assertEqual(run(rec, [(tilted, 2 + i * 0.2) for i in range(6)]), [])
 
     def test_swipe(self):
         for sign, name in ((1, "SWIPE_RIGHT"), (-1, "SWIPE_LEFT")):
@@ -89,25 +93,9 @@ class EventTests(unittest.TestCase):
         frames = [(make_hand(ALL, thumb=True, cx=0.3 + 0.004 * i), i * 0.05) for i in range(40)]
         self.assertEqual(run(rec, frames), [])
 
-    def test_seek_repeats_while_tilted(self):
-        rec = g.GestureRecognizer()
-        tilted = make_hand(ALL, thumb=True, angle=50)
-        events = run(rec, [(tilted, i * 0.1) for i in range(12)])
-        self.assertTrue(set(events) == {"SEEK_FORWARD"} and len(events) >= 2)
-        rec = g.GestureRecognizer()
-        events = run(rec, [(make_hand(ALL, thumb=True, angle=-50), 0.0)])
-        self.assertEqual(events, ["SEEK_BACKWARD"])
-
     def test_upright_open_hand_does_nothing(self):
         rec = g.GestureRecognizer()
         self.assertEqual(run(rec, [(make_hand(ALL, thumb=True), i * 0.1) for i in range(20)]), [])
-
-    def test_transfer_at_edge(self):
-        rec = g.GestureRecognizer()
-        pinch = lambda cx: make_hand(("index",), pinch=True, cx=cx)  # noqa: E731
-        self.assertEqual(run(rec, [(pinch(0.5), 0.0), (pinch(0.97), 0.1), (pinch(0.98), 0.2)]), ["TRANSFER_RIGHT"])
-        rec = g.GestureRecognizer()
-        self.assertEqual(run(rec, [(pinch(0.5), 0.0), (pinch(0.03), 0.1)]), ["TRANSFER_LEFT"])
 
     def test_no_hand_resets(self):
         rec = g.GestureRecognizer()
@@ -115,6 +103,23 @@ class EventTests(unittest.TestCase):
         run(rec, [(fist, 0.0)])
         self.assertEqual(rec.update(None, 0.3), ("NONE", []))
         self.assertEqual(run(rec, [(fist, 0.4), (fist, 0.6)]), [])  # el conteo de hold reinicia
+
+
+class PointerTests(unittest.TestCase):
+    def test_map_to_screen(self):
+        from controller import ACTIVE_X, ACTIVE_Y, map_to_screen
+        self.assertEqual(map_to_screen(ACTIVE_X[0], ACTIVE_Y[0], 1000, 800), (0, 0))
+        self.assertEqual(map_to_screen(ACTIVE_X[1], ACTIVE_Y[1], 1000, 800), (999, 799))
+        self.assertEqual(map_to_screen(0.0, 1.0, 1000, 800), (0, 799))  # fuera de la zona: se limita
+        mx, my = map_to_screen(0.5, (ACTIVE_Y[0] + ACTIVE_Y[1]) / 2, 1000, 800)
+        self.assertAlmostEqual(mx, 499.5)
+
+    def test_actions(self):
+        from controller import ACTIONS
+        self.assertEqual(ACTIONS["FIST"], ("key", "m"))
+        self.assertEqual(ACTIONS["PINCH"][0], "right_click")
+        self.assertEqual(ACTIONS["SWIPE_LEFT"], ("key", "left"))
+        self.assertEqual(ACTIONS["SWIPE_RIGHT"], ("key", "right"))
 
 
 if __name__ == "__main__":

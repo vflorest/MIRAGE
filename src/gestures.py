@@ -1,16 +1,11 @@
 """Reconocimiento de gestos por reglas sobre los 21 landmarks de MediaPipe.
 
-Gestos estáticos (se mantienen ~HOLD_S segundos para activarse):
-    PINCH  (pulgar + índice juntos)  -> SELECT
-    FIST   (puño cerrado)            -> PLAY_PAUSE
-    PEACE  (índice + medio, en V)    -> MUTE_TOGGLE
+Poses: OPEN (mano abierta), FIST (puño), PINCH (pulgar + índice juntos), NONE.
 
-Gestos dinámicos con la mano abierta (OPEN):
-    movimiento horizontal rápido     -> SWIPE_LEFT / SWIPE_RIGHT
-    inclinar (girar) la mano         -> SEEK_BACKWARD / SEEK_FORWARD (se repite)
-
-Arrastre:
-    PINCH sostenido hasta el borde   -> TRANSFER_LEFT / TRANSFER_RIGHT
+Eventos:
+    FIST        puño mantenido ~HOLD_S
+    PINCH       pellizco mantenido ~PINCH_HOLD_S
+    SWIPE_LEFT / SWIPE_RIGHT   mano abierta moviéndose rápido en horizontal
 
 Las direcciones se expresan en la imagen espejada (la que ve el usuario).
 """
@@ -28,13 +23,11 @@ FINGERS = {"index": (6, 8), "middle": (10, 12), "ring": (14, 16), "pinky": (18, 
 
 PINCH_RATIO = 0.3  # distancia pulgar-índice / tamaño de la mano
 PINCH_MIN_INDEX_REACH = 1.1  # alcance muñeca-punta del índice / tamaño de la mano
-HOLD_S = 0.4  # tiempo para activar un gesto estático
+HOLD_S = 0.4  # tiempo para activar el puño
+PINCH_HOLD_S = 0.15  # el pellizco hace clic, debe responder rápido
 SWIPE_WINDOW_S = 0.4
 SWIPE_MIN_DX = 0.30  # fracción del ancho de la imagen
 SWIPE_COOLDOWN_S = 1.0
-SEEK_ANGLE_DEG = 35
-SEEK_REPEAT_S = 0.5
-TRANSFER_EDGE = 0.08  # margen del borde, fracción del ancho
 
 
 def _dist(a, b):
@@ -73,8 +66,6 @@ def classify_pose(lm):
         return "OPEN"
     if not any(four):
         return "FIST"
-    if f["index"] and f["middle"] and not f["ring"] and not f["pinky"]:
-        return "PEACE"
     return "NONE"
 
 
@@ -82,14 +73,7 @@ def palm_center(lm):
     return lm[WRIST].x * 0.5 + lm[MIDDLE_MCP].x * 0.5, lm[WRIST].y * 0.5 + lm[MIDDLE_MCP].y * 0.5
 
 
-def roll_angle(lm):
-    """Inclinación de la mano respecto a la vertical, en grados (+ = hacia la derecha)."""
-    dx = lm[MIDDLE_MCP].x - lm[WRIST].x
-    dy = lm[MIDDLE_MCP].y - lm[WRIST].y
-    return math.degrees(math.atan2(dx, -dy))
-
-
-STATIC_EVENTS = {"PINCH": "SELECT", "FIST": "PLAY_PAUSE", "PEACE": "MUTE_TOGGLE"}
+HOLD_BY_POSE = {"FIST": HOLD_S, "PINCH": PINCH_HOLD_S}
 
 
 class GestureRecognizer:
@@ -104,8 +88,6 @@ class GestureRecognizer:
         self._pose_fired = False
         self._xs = deque()  # (t, x) del centro de la palma con la mano abierta
         self._swipe_ready_at = 0.0
-        self._next_seek_at = 0.0
-        self._transfer_fired = False
 
     def update(self, lm, t):
         """lm: lista de 21 landmarks normalizados, o None si no hay mano. t en segundos."""
@@ -119,20 +101,12 @@ class GestureRecognizer:
 
         if pose != self._pose:
             self._pose, self._pose_since, self._pose_fired = pose, t, False
-            self._transfer_fired = False
             self._xs.clear()
 
-        if pose in STATIC_EVENTS and not self._pose_fired and t - self._pose_since >= HOLD_S:
-            events.append(STATIC_EVENTS[pose])
+        hold = HOLD_BY_POSE.get(pose)
+        if hold is not None and not self._pose_fired and t - self._pose_since >= hold:
+            events.append(pose)
             self._pose_fired = True
-
-        if pose == "PINCH" and not self._transfer_fired:
-            if cx < TRANSFER_EDGE:
-                events.append("TRANSFER_LEFT")
-                self._transfer_fired = True
-            elif cx > 1 - TRANSFER_EDGE:
-                events.append("TRANSFER_RIGHT")
-                self._transfer_fired = True
 
         if pose == "OPEN":
             self._xs.append((t, cx))
@@ -143,10 +117,5 @@ class GestureRecognizer:
                 events.append("SWIPE_RIGHT" if dx > 0 else "SWIPE_LEFT")
                 self._swipe_ready_at = t + SWIPE_COOLDOWN_S
                 self._xs.clear()
-
-            angle = roll_angle(lm)
-            if abs(angle) >= SEEK_ANGLE_DEG and t >= self._next_seek_at:
-                events.append("SEEK_FORWARD" if angle > 0 else "SEEK_BACKWARD")
-                self._next_seek_at = t + SEEK_REPEAT_S
 
         return pose, events
