@@ -1,6 +1,5 @@
 opencv-python
 mediapipe
-torch
 numpy
 websockets
-
+pyautogui

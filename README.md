@@ -14,38 +14,41 @@ MIRAGE — Multiplatform Image Recognition And Gesture Experience. Sistema de ma
 - PyTorch/ONNX
 - WebSockets/WebRTC
 
-# ===============================
-# MIRAGE Webcam + Docker (Mac/Win)
-# ===============================
+## Instalación (sin Docker)
+Requiere Python 3.10 a 3.13.
 
-# 1️⃣  Configura el display para XQuartz/VcXsrv
-x11-setup:
-	@echo "🎨 Configurando servidor gráfico..."
-	@if [ "$$(uname)" = "Darwin" ]; then \
-		open -a XQuartz; \
-		sleep 2; \
-		export IP=$$(ifconfig en0 | grep inet | awk '$$1=="inet" {print $$2}'); \
-		xhost + $$IP; \
-		echo "✅ XQuartz configurado con IP $$IP"; \
-	else \
-		echo "🪟 En Windows usa VcXsrv (con 'Disable access control') y socat"; \
-	fi
+macOS / Linux:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python src/main.py
+```
 
-# 2️⃣  Abre el túnel entre XQuartz/VcXsrv y Docker
-x11-forward:
-	@echo "🔄 Creando puente con socat..."
-	@if [ "$$(uname)" = "Darwin" ]; then \
-		socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:\"$$DISPLAY\" & \
-	else \
-		echo "Usa socat o WSL con: socat TCP-LISTEN:6000,reuseaddr,fork UNIX-CLIENT:\"$$DISPLAY\" &"; \
-	fi
+Windows (PowerShell):
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python src\main.py
+```
+Si PowerShell bloquea el script de activación: `Set-ExecutionPolicy -Scope Process Bypass`.
+En macOS, la primera ejecución pedirá permiso de cámara para la terminal.
 
-# 3️⃣  Ejecuta MIRAGE en Docker con acceso a cámara
-run-docker:
-	@echo "🚀 Iniciando MIRAGE en Docker con cámara..."
-	docker-compose up --build
+## Gestos
+Reglas sobre los landmarks de MediaPipe (`src/gestures.py`) y acciones en `src/controller.py`.
+El puntero del sistema sigue el centro de la palma.
 
-# 4️⃣  Apagar contenedor
-down:
-	docker-compose down
+| Gesto | Acción |
+|---|---|
+| Puño (~0.4 s) | tecla `m` |
+| Pellizco (pulgar + índice) | clic derecho |
+| Mano abierta, barrido rápido a la izquierda | tecla `←` |
+| Mano abierta, barrido rápido a la derecha | tecla `→` |
 
+Ventana: `q` sale, `c` activa/desactiva el control del sistema. `python src/main.py --dry-run` arranca sin controlar el sistema.
+En macOS hay que dar permiso de Accesibilidad a la terminal (Ajustes > Privacidad y seguridad) para que se muevan el puntero y las teclas.
+
+Tests: `python -m unittest discover -s tests`
+
+Diseño completo en `docs/DocumentoAnalisisDiseno-PDI.docx`.

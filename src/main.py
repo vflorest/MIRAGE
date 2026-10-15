@@ -1,12 +1,101 @@
+import argparse
+import sys
+import time
+from pathlib import Path
+
 import cv2
 import mediapipe as mp
+from mediapipe.tasks.python import BaseOptions, vision
 
-print("✅ MIRAGE iniciado correctamente")
+from controller import Controller
+from gestures import GestureRecognizer, palm_center
 
-# Test de cámara
-cap = cv2.VideoCapture(0)
-if not cap.isOpened():
-    print("⚠️ No se detecta cámara")
-else:
-    print("🎥 Cámara detectada correctamente")
+MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "hand_landmarker.task"
+CONNECTIONS = vision.HandLandmarksConnections.HAND_CONNECTIONS
+
+
+def create_landmarker():
+    options = vision.HandLandmarkerOptions(
+        base_options=BaseOptions(model_asset_path=str(MODEL_PATH)),
+        running_mode=vision.RunningMode.VIDEO,
+        num_hands=2,
+    )
+    return vision.HandLandmarker.create_from_options(options)
+
+
+def draw_hand(frame, landmarks):
+    h, w = frame.shape[:2]
+    points = [(int(lm.x * w), int(lm.y * h)) for lm in landmarks]
+    for c in CONNECTIONS:
+        cv2.line(frame, points[c.start], points[c.end], (0, 255, 0), 2)
+    for p in points:
+        cv2.circle(frame, p, 4, (0, 0, 255), -1)
+
+
+def put_text(frame, text, y, scale=0.8, color=(255, 255, 255)):
+    cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), 4)
+    cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 2)
+
+
+def main(dry_run=False):
+    # En Windows el backend por defecto (MSMF) suele tardar o fallar al abrir la cámara
+    cap = cv2.VideoCapture(0, cv2.CAP_DSHOW) if sys.platform == "win32" else cv2.VideoCapture(0)
+    if not cap.isOpened():
+        print("No se detecta cámara")
+        return
+
+    print("MIRAGE iniciado. 'q' = salir, 'c' = activar/desactivar control del sistema.")
+    start = time.monotonic()
+    recognizer = GestureRecognizer()
+    controller = Controller(enabled=not dry_run)
+    last_event, last_event_t = "", -10.0
+    with create_landmarker() as landmarker:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                break
+            frame = cv2.flip(frame, 1)
+
+            rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+            timestamp_ms = int((time.monotonic() - start) * 1000)
+            result = landmarker.detect_for_video(image, timestamp_ms)
+
+            for landmarks in result.hand_landmarks:
+                draw_hand(frame, landmarks)
+
+            now = timestamp_ms / 1000
+            hand = result.hand_landmarks[0] if result.hand_landmarks else None
+            pose, events = recognizer.update(hand, now)
+            for event in events:
+                print(event, flush=True)
+                controller.handle(event)
+                last_event, last_event_t = event, now
+
+            if hand:
+                px, py = palm_center(hand)
+                controller.move_pointer(px, py)
+                h, w = frame.shape[:2]
+                cv2.circle(frame, (int(px * w), int(py * h)), 12, (255, 0, 255), 3)
+            else:
+                controller.lost_hand()
+
+            put_text(frame, f"Pose: {pose}" + (" [sin control]" if not controller.enabled else ""), 30)
+            if now - last_event_t < 1.5:
+                put_text(frame, last_event, 70, scale=1.1, color=(0, 255, 255))
+
+            cv2.imshow("MIRAGE", frame)
+            key = cv2.waitKey(1) & 0xFF
+            if key == ord("q"):
+                break
+            if key == ord("c"):
+                controller.enabled = not controller.enabled
+
     cap.release()
+    cv2.destroyAllWindows()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dry-run", action="store_true", help="no mover el puntero ni enviar teclas/clics")
+    main(dry_run=parser.parse_args().dry_run)
