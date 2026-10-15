@@ -15,12 +15,24 @@ MIRAGE — Multiplatform Image Recognition And Gesture Experience. Sistema de ma
 - WebSockets/WebRTC
 
 ## Instalación (sin Docker)
+Requiere Python 3.10 a 3.13.
+
+macOS / Linux:
 ```bash
-python3.13 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 python src/main.py
 ```
+
+Windows (PowerShell):
+```powershell
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python src\main.py
+```
+Si PowerShell bloquea el script de activación: `Set-ExecutionPolicy -Scope Process Bypass`.
 En macOS, la primera ejecución pedirá permiso de cámara para la terminal.
 
 ## Gestos
