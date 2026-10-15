@@ -5,6 +5,8 @@ import cv2
 import mediapipe as mp
 from mediapipe.tasks.python import BaseOptions, vision
 
+from gestures import GestureRecognizer
+
 MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "hand_landmarker.task"
 CONNECTIONS = vision.HandLandmarksConnections.HAND_CONNECTIONS
 
@@ -27,6 +29,11 @@ def draw_hand(frame, landmarks):
         cv2.circle(frame, p, 4, (0, 0, 255), -1)
 
 
+def put_text(frame, text, y, scale=0.8, color=(255, 255, 255)):
+    cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, scale, (0, 0, 0), 4)
+    cv2.putText(frame, text, (10, y), cv2.FONT_HERSHEY_SIMPLEX, scale, color, 2)
+
+
 def main():
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
@@ -35,6 +42,8 @@ def main():
 
     print("MIRAGE iniciado. Presiona 'q' para salir.")
     start = time.monotonic()
+    recognizer = GestureRecognizer()
+    last_event, last_event_t = "", -10.0
     with create_landmarker() as landmarker:
         while True:
             ok, frame = cap.read()
@@ -49,6 +58,17 @@ def main():
 
             for landmarks in result.hand_landmarks:
                 draw_hand(frame, landmarks)
+
+            now = timestamp_ms / 1000
+            hand = result.hand_landmarks[0] if result.hand_landmarks else None
+            pose, events = recognizer.update(hand, now)
+            for event in events:
+                print(event, flush=True)
+                last_event, last_event_t = event, now
+
+            put_text(frame, f"Pose: {pose}", 30)
+            if now - last_event_t < 1.5:
+                put_text(frame, last_event, 70, scale=1.1, color=(0, 255, 255))
 
             cv2.imshow("MIRAGE", frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
