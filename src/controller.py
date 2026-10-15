@@ -7,7 +7,7 @@ pyautogui.FAILSAFE = False  # el puntero llega a las esquinas a propósito
 
 ACTIONS = {
     "FIST": ("key", "m"),
-    "PINCH": ("right_click", None),
+    "PINCH": ("left_click", None),
     "SWIPE_LEFT": ("key", "left"),
     "SWIPE_RIGHT": ("key", "right"),
 }
@@ -55,5 +55,5 @@ class Controller:
             return
         if action == "key":
             pyautogui.press(arg)
-        elif action == "right_click":
-            pyautogui.click(button="right")
+        elif action == "left_click":
+            pyautogui.click()

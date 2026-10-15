@@ -117,7 +117,7 @@ class PointerTests(unittest.TestCase):
     def test_actions(self):
         from controller import ACTIONS
         self.assertEqual(ACTIONS["FIST"], ("key", "m"))
-        self.assertEqual(ACTIONS["PINCH"][0], "right_click")
+        self.assertEqual(ACTIONS["PINCH"][0], "left_click")
         self.assertEqual(ACTIONS["SWIPE_LEFT"], ("key", "left"))
         self.assertEqual(ACTIONS["SWIPE_RIGHT"], ("key", "right"))
 

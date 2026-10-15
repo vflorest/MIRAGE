@@ -42,7 +42,7 @@ El puntero del sistema sigue el centro de la palma.
 | Gesto | Acción |
 |---|---|
 | Puño (~0.4 s) | tecla `m` |
-| Pellizco (pulgar + índice) | clic derecho |
+| Pellizco (pulgar + índice) | clic izquierdo |
 | Mano abierta, barrido rápido a la izquierda | tecla `←` |
 | Mano abierta, barrido rápido a la derecha | tecla `→` |
 
